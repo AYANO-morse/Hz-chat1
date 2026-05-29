@@ -278,6 +278,55 @@
         <h3>[ Your Frequency ]</h3>
         <p style="font-size: 11px; color: #8b949e; margin: 0 0 10px 0;">URLに ?admin=1 をつけて開くと…?</p>
         <div class="my-id-display" id="myIdDisplay">---.-- MHz</div>
+        <div class="box">
+    <h3>[ ONLINE USERS ]</h3>
+
+    <div id="onlineUsers"
+        style="
+            font-size:13px;
+            line-height:1.8;
+            color:#c9d1d9;
+            min-height:80px;
+        ">
+        Scanning...
+    </div>
+</div>
+
+<div class="box">
+    <h3>[ LOG SYSTEM ]</h3>
+
+    <input
+        type="password"
+        id="logPassword"
+        placeholder="Set log password"
+        style="
+            width:100%;
+            box-sizing:border-box;
+            background:#0d1117;
+            border:1px solid #30363d;
+            color:#fff;
+            padding:8px;
+            border-radius:5px;
+            margin-bottom:8px;
+        "
+    >
+
+    <button
+        class="btn-reset"
+        style="width:100%; margin-bottom:8px;"
+        onclick="saveLogPassword()"
+    >
+        SAVE PASSWORD
+    </button>
+
+    <button
+        class="btn-reset"
+        style="width:100%;"
+        onclick="openLogs()"
+    >
+        VIEW LOGS
+    </button>
+</div>
     </div>
 </div>
 
