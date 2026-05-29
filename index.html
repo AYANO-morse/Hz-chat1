@@ -725,6 +725,286 @@ function transmitMessage() {
 }
 
 updateDialRotation(); selectSlot(0); checkVaultStatus();
+// ===== ONLINE USERS + LOG SYSTEM 統合追加 =====
+
+const onlineUsers = new Map();
+const ONLINE_TIMEOUT = 10000;
+
+let logPasswordHash = localStorage.getItem('radio_log_password') || '';
+
+function hashString(str) {
+    let hash = 0;
+
+    for (let i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+    }
+
+    return String(hash);
+}
+
+function updateOnlineUsersUI() {
+    const container = document.getElementById('onlineUsers');
+
+    if (!container) return;
+
+    const now = Date.now();
+
+    for (const [freq, time] of onlineUsers.entries()) {
+        if (now - time > ONLINE_TIMEOUT) {
+            onlineUsers.delete(freq);
+        }
+    }
+
+    if (onlineUsers.size === 0) {
+        container.innerHTML = 'No active frequencies';
+        return;
+    }
+
+    container.innerHTML = '';
+
+    [...onlineUsers.keys()].sort().forEach(freq => {
+
+        const div = document.createElement('div');
+
+        let icon = '●';
+        let color = '#50fa7b';
+
+        if (freq === 'OoOoO') {
+            icon = '◉';
+            color = '#ff3366';
+        }
+
+        if (freq === myFreq) {
+            icon = '◆';
+            color = '#00ffcc';
+        }
+
+        div.innerHTML = `
+            <span style="
+                color:${color};
+                font-weight:bold;
+                text-shadow:0 0 6px ${color};
+            ">
+                ${icon} ${formatFreq(freq)} MHz
+            </span>
+        `;
+
+        container.appendChild(div);
+    });
+}
+
+function broadcastHeartbeat() {
+
+    const packet = {
+        type: 'heartbeat',
+        freq: myFreq
+    };
+
+    localBus.postMessage(packet);
+}
+
+function saveMessageLog(packet) {
+
+    try {
+
+        const logs = JSON.parse(
+            localStorage.getItem('radio_message_logs') || '[]'
+        );
+
+        logs.push({
+            time: new Date().toLocaleString(),
+            from: packet.from,
+            to: packet.to,
+            message: packet.message
+        });
+
+        localStorage.setItem(
+            'radio_message_logs',
+            JSON.stringify(logs)
+        );
+
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+function saveLogPassword() {
+
+    const pass =
+        document.getElementById('logPassword').value.trim();
+
+    if (!pass) {
+        alert('Enter password');
+        return;
+    }
+
+    logPasswordHash = hashString(pass);
+
+    localStorage.setItem(
+        'radio_log_password',
+        logPasswordHash
+    );
+
+    alert('Log password saved');
+}
+
+function openLogs() {
+
+    if (!logPasswordHash) {
+        alert('No password set');
+        return;
+    }
+
+    const pass = prompt('Enter log password');
+
+    if (hashString(pass || '') !== logPasswordHash) {
+        alert('Wrong password');
+        return;
+    }
+
+    const logs = JSON.parse(
+        localStorage.getItem('radio_message_logs') || '[]'
+    );
+
+    if (logs.length === 0) {
+        alert('No logs');
+        return;
+    }
+
+    const logWindow = window.open('', '_blank');
+
+    logWindow.document.write(`
+        <html>
+        <head>
+            <title>RADIO LOGS</title>
+
+            <style>
+
+                body{
+                    background:#0d1117;
+                    color:#58a6ff;
+                    font-family:monospace;
+                    padding:20px;
+                }
+
+                .log{
+                    border-bottom:1px solid #30363d;
+                    padding:10px 0;
+                }
+
+                .route{
+                    color:#ff79c6;
+                    font-weight:bold;
+                }
+
+                .time{
+                    color:#8b949e;
+                    font-size:12px;
+                }
+
+                .msg{
+                    color:#fff;
+                    margin-top:5px;
+                    word-break:break-all;
+                }
+
+            </style>
+        </head>
+
+        <body>
+
+            <h2>[ RADIO MESSAGE LOGS ]</h2>
+
+            ${logs.reverse().map(log => `
+
+                <div class="log">
+
+                    <div class="time">
+                        ${log.time}
+                    </div>
+
+                    <div class="route">
+                        ${formatFreq(log.from)}
+                        ➔
+                        ${formatFreq(log.to)}
+                    </div>
+
+                    <div class="msg">
+                        ${log.message}
+                    </div>
+
+                </div>
+
+            `).join('')}
+
+        </body>
+        </html>
+    `);
+}
+
+setInterval(() => {
+    broadcastHeartbeat();
+}, 3000);
+
+setInterval(() => {
+    updateOnlineUsersUI();
+}, 1000);
+
+// ===== localBus.onmessage 統合版 =====
+
+localBus.onmessage = (event) => {
+
+    const data = event.data;
+
+    if (!data) return;
+
+    // ONLINE USER 更新
+    if (data.type === 'heartbeat') {
+
+        onlineUsers.set(
+            data.freq,
+            Date.now()
+        );
+
+        updateOnlineUsersUI();
+
+        return;
+    }
+
+    // ADMIN 傍受
+    if (
+        isAdmin ||
+        vaultTargetDigits.join('') === "OoOoO"
+    ) {
+
+        if (data.isIntercept) {
+
+            saveMessageLog(data);
+
+            processIncomingData(data);
+        }
+
+    } else {
+
+        // 通常受信
+        if (
+            !data.isIntercept &&
+            data.to === myFreq
+        ) {
+
+            saveMessageLog(data);
+
+            processIncomingData(data);
+        }
+    }
+};
+
+// ===== 起動時 =====
+
+onlineUsers.set(myFreq, Date.now());
+
+updateOnlineUsersUI();
 </script>
 </body>
 </html>
